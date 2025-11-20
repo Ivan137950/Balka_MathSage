@@ -1,37 +1,41 @@
 from sage.all import *
+import matplotlib.pyplot as plt
 
-
-class Equasions():
+# Составление системы уравнений
+class Equasions():  
     def __init__(self):
-        E, J, P0, M5, q12, q21, x = var('E J P0 M5 q12 q21 x')
-        self.P0 = P0    
-        self.M5 = M5
-        self.E = E
-        self.J = J
+
+        E, J, K, P0, M5, q12, q21, x = var('E J K P0 M5 q12 q21 x')
+
+        self.P0 = P0    # Известная сила
+        self.M5 = M5    # Известный момент
+        self.K = K      # Коэффициент упругости
+        self.E = E      # Модуль упругости
+        self.J = J      # Момент инерции 
         self.x = x
-        self.q12 = q12
-        self.q21 = q21
+        self.q12 = q12  # Распределённая сила
+        self.q21 = q21  # Распределённая сила
         self.k = (q21 - q12) / 9
         self.points = [0, 2, 7, 10, 15, 23, 12, 12, 21, 21] 
         self.coefs = [self.x - p for p in self.points]
 
-        self.M = self.M_fun()
-        self.Q = self.Q_fun()
-        self.theta = self.theta_fun()     
-        self.w = self.w_fun()
+        self.M = self.M_fun()           # момент
+        self.Q = self.Q_fun()           # сила
+        self.theta = self.theta_fun()   # угол
+        self.w = self.w_fun()           # прогиб
+        self.R23 = self.R23_fun()       # R23 = K * w(23); можно явно вывести через остальные R_i, p
         self.sp = self.sum_powers()
-        self.sm_1 = self.sum_momentums_1()
-        self.sm_2 = self.sum_momentums_2()
+        self.sm = self.sum_momentums()
 
     def __str__(self):
         str1 = f'w(x) = {self.w}'
         str2 = f'theta(x) = {self.theta}'
         str3 = f'M(x) = {self.M}'
         str4 = f'Q(x) = {self.Q}'
-        str5 = f'Moms_1(x) = {self.sm_1}'
-        str6 = f'Moms_2(x) = {self.sm_2}'
-        str7 = f'Pows(x) = {self.sum_powers()}'
-        return f'THE SYSTEM OF THE EQUASIONS: \n\n {str1} \n\n {str2} \n\n {str3} \n\n {str4}  \n\n {str5} \n\n {str6} \n\n {str7} \n---------------------------------------------------------------------------------------------------------'
+        str5 = f'Moms_1(x) = {self.sm}'
+        str6 = f'Pows(x) = {self.sum_powers()}'
+        str7 = f'R23 = {self.R23}'
+        return f'THE SYSTEM OF THE EQUASIONS: \n\n {str1} \n\n {str2} \n\n {str3} \n\n {str4}  \n\n {str5} \n\n {str6} \n\n {str7} \n\n---------------------------------------------------------------------------------------------------------'
     
 
     def r_x(self):
@@ -87,116 +91,114 @@ class Equasions():
         eq += (theta * x + w)
         return eq
     
+    def R23_fun(self):
+        return self.K * self.w(x = 23)
+    
     def sum_powers(self):
         return self.Q(x = 25)
 
-    def sum_momentums_1(self):
+    def sum_momentums(self):
         return self.M(x = 25)
     
-    def sum_momentums_2(self):
-        (R2, R7, R10, R15, R23) = var('R2 R7 R10 R15 R23')
-        return 2 * R2 + 7 * R7 + 10 * R10 + 15 * R15 + 23 * R23 + self.M5 + 1/27*(self.q12 - self.q21)*(12) ** 3 - 1/27*(self.q12 - self.q21)*(21) ** 3 + self.q12*(12) ** 2 - self.q21*(21) ** 2
 # ------------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------
 
-
+# Решение системы уравнений
 class SystemSolution():
-    def __init__(self, points, p=1, m=1, q12=1, q21=2):
-        self.equation = Equasions()
-        self.w = self.equation.w
-        self.points = points
-        self.summa = self.equation.sp
-        self.moms = self.equation.M
-        self.p = p
-        self.m = m
-        self.q12 = q12
-        self.q21 = q21
-        self.system = []
-        self.fullfill_system()
+    def __init__(self, p = 0, m = 0, k = 1, e = 1, j = 1, q1 = 0, q2 = 0):
+        self.P0, self.M5, self.K, self.E, self.J, self.q12, self.q21 = p, m, k, e, j, q1, q2
+        self.points = [2, 7, 10, 15]
+        self.equasion = Equasions()
+        self.R23 = self.equasion.R23
+        self.w = self.equasion.w(R23 = self.R23)
+        self.theta = self.equasion.theta(R23 = self.R23)
+        self.M = self.equasion.M(R23 = self.R23)
+        self.Q = self.equasion.Q(R23 = self.R23)
+        self.sp = self.equasion.sp(R23 = self.R23)
+        self.sm = self.equasion.sm(R23 = self.R23)
+
+        self.system = self.make_system()
 
     def __str__(self):
-       strs = "SYSTEM: \n\n" + '\n'.join(map(str, simplify(self.system)))
-       strs += '\n\n' + "SOLUTION: \n\n" + '\n'.join(map(str, self.solve_system()))
-       strs += "\n\n ---------------------------------------------------------------------- \n\n"
-       return strs
+        return "THE TRANSFORMED EQUASIONS:\n\n" + "\n\n".join(map(str, self.system)) + "-----------------------------------------------------------------------------------------------------------------"
     
-    def fullfill_system(self):
+
+    def make_system(self):
+        eq = []
         for p in self.points:
-            self.system.append(self.w(x = p, M6 = self.m, P0 = self.p, q12 = self.q12, q21 = self.q21) == 0)
-        self.system.append(self.moms(x = 26, M6 = self.m, P0 = self.p, q12 = self.q12, q21 = self.q21) == 0)
-        self.system.append(self.equation.sm(M6 = self.m, P0 = self.p, q12 = self.q12, q21 = self.q21) == 0)
-        self.system.append(self.summa(M6 = self.m, P0 = self.p, q12 = self.q12, q21 = self.q21) == 0)
-
-    
-    def solve_system(self):
-        #print('\n'.join(map(str, simplify(self.system))))
-        solution = solve(self.system, R3, R8, R11, R16, R24, theta, w0)
-        return solution
+            temp = self.w(R23 = self.R23, x = p)
+            eq.append(temp(P0 = self.P0, M5 = self.M5, K = self.K, E = self.E, J = self.J, q12 = self.q12, q21 = self.q21))
+        temp = self.sm(R23 = self.R23, x = 25)
+        eq.append(temp(P0 = self.P0, M5 = self.M5, K = self.K, E = self.E, J = self.J, q12 = self.q12, q21 = self.q21))
+        temp = self.sp(R23 = self.R23, x = 25)
+        eq.append(temp(P0 = self.P0, M5 = self.M5, K = self.K, E = self.E, J = self.J, q12 = self.q12, q21 = self.q21))
+        return eq
     
 
-    #def float_solution(self):
-    #    keys = ['R3', 'R8', 'R11', 'R16', 'R24', 'theta', 'w0']
-    #    solution = []
-    #    ss = sol.solve_system()
-    #    for s in map(str, ss):
-    #        float_s = s.split('==')[1][2:-1]
-    #        solution.append(float(float_s.split('/')[0]) / float(float_s.split('/')[1]))
-    #    return {keys[i]: solution[i] for i in range(len(keys))}
+    def solve(self):
+        return solve(self.system)
+    
+# ------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------------
 
+class DrawGraphics():
+    def __init__(self, system, p = 1, m = 4, k = 0.4, e = 200000, j = 1, q1 = 0, q2 = 0):
+        self.M = m
+        self.P = p
+        self.system = system
+        self.solution = self.system.solve()
+        self.solve_dict = {str(s).split('==')[0]: str(s).split('==')[1] for s in self.solution[0]}
+        for key in self.solve_dict:
+            nums = self.solve_dict[key].split('/')
+            self.solve_dict[key] = float(nums[0][2:]) / float(nums[1][:-1])
+        
+        self.w = self.system.w(**self.solve_dict, P0 = p, M5 = m, K = k, E = e, J = j, q12 = q1, q21 = q2)
+        self.theta = self.system.theta(**self.solve_dict, P0 = p, M5 = m, K = k, E = e, J = j, q12 = q1, q21 = q2)
+        self.M = self.system.M(**self.solve_dict, P0 = p, M5 = m, K = k, E = e, J = j, q12 = q1, q21 = q2)
+        self.Q = self.system.Q(**self.solve_dict, P0 = p, M5 = m, K = k, E = e, J = j, q12 = q1, q21 = q2)
+        
+    def make_graphics(self):
+        print(self.solve_dict)
+
+        X = [x for x in range(26)]
+        W = [self.w(x = x) for x in X]
+        THETA = [self.theta(x = x) for x in X]
+        M = [self.M(x = x) for x in X]
+        Q = [self.Q(x = x) for x in X]
+
+        _, axes = plt.subplots(nrows=4, ncols=1, figsize=(8, 12)) 
+
+        for i, (graphic, name) in enumerate(zip([Q, M, THETA, W], ['Q', 'M', '$\Theta$', 'W'])):
+            ax = axes[i]
+            
+            ax.axhline(y=0, color='black', linewidth=0.8)
+            
+            ax.plot([2, 7, 10, 15], [0]*4, 'ro', label='R')   
+            ax.plot([5], [0], 'ko', label='M5 ')             
+            ax.plot([0], [0], 'go', label='P0 ')             
+            ax.plot([23], [0], 'yo', label='K23')
+            ax.plot([12, 21], [0]*2, 'm', label='q12-q21')               
+            
+            ax.plot(X, graphic, 'b-', label=name)
+            
+            ax.set_xlabel('x')
+            ax.set_ylabel(name)
+            ax.set_title(f'{name}(x)', fontsize=12)
+            ax.legend(loc="upper right")
+            ax.grid(True)
+
+        plt.tight_layout() 
+        plt.show()
 
 
 # ------------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------
-
-
-#P0, M6, K24,  x = var('P0 M6 K24 x')
 
 eq = Equasions()
 print(eq)
 
-#points = [3, 8, 11, 16]
-#p, m, q1, q2 = 0.1, 0.02, 0.02, 0.04 
-#sol = SystemSolution(points, p, m, q1, q2)
-##solut = sol.float_solution()
-#print(sol)
-#print(solut)
-
-#values = [{'P0': p, 
-#           'M6': m, 
-#           'q12': q1, 
-#           'q21': q2, 
-#           'R3': solut['R3'], 
-#           'R8': solut['R8'], 
-#           'R11': solut['R11'], 
-#           'R16': solut['R16'], 
-#           'R24': solut['R24'], 
-#           'theta': solut['theta'], 
-#           'w0': solut['w0'], 
-#           'x': xi}
-#           for xi in range(0, 26)
-#           ]
-
-#w_points = [eq.w(**(val)) for val in values]
-#theta_points = [eq.theta(**(val)) for val in values]
-#m_points = [eq.M(**(val)) for val in values]
-#q_points = [eq.Q(**(val)) for val in values]
-#x_points = [val['x'] for val in values]
-
-#print(w_points)
-#print(theta_points)
-#print(m_points)
-#print(q_points)
-
-#import matplotlib.pyplot as plt
-
-#labels = ['w', '$\Theta$', 'm', 'q']
-#for i, dataset in enumerate([w_points, theta_points, m_points, q_points]):
-#    plt.plot(x_points, [0 for _ in range(26)], 'k')
-#    plt.plot([3, 8, 11, 16, 24], [0 for _ in range(5)], 'ro')
-#    plt.plot(x_points, dataset, 'b')
-#    plt.xlabel('x')
-#    plt.ylabel(labels[i])
-#    plt.title(labels[i])
-#    plt.legend()
-#    plt.grid()
-#    plt.show()
+system_sol = SystemSolution(p = 10, m = 47, k = 0.4, e = 2000, j = 1, q1 = 1, q2 = 2)
+print(system_sol)
+solution = system_sol.solve()
+print("Solution: \n\n", solution)
+DrawGraphics(system_sol, p = 10, m = 47, k = 0.4, e = 2000, j = 1, q1 = 1, q2 = 2).make_graphics()
